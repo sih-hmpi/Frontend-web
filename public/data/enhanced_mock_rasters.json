@@ -1,0 +1,250 @@
+[
+  {
+    "Raster_ID": "IN-0001",
+    "State": "Punjab",
+    "District": "Ludhiana",
+    "Lat_Center": 30.9009,
+    "Lon_Center": 75.8573,
+    "Heavy_Metals": {
+      "As": 0.052,
+      "Pb": 0.025,
+      "Cr": 0.045,
+      "Cd": 0.008,
+      "Hg": 0.0012,
+      "Fe": 0.85,
+      "Mn": 0.35
+    },
+    "WHO_Limits": {
+      "As": 0.01,
+      "Pb": 0.01,
+      "Cr": 0.05,
+      "Cd": 0.003,
+      "Hg": 0.006,
+      "Fe": 0.3,
+      "Mn": 0.4
+    },
+    "Risk_Index": 0.78,
+    "Exceedance_Flag": true,
+    "Population_Density": 1200,
+    "Population_Exposed": 15000,
+    "Health_Risk_Score": 0.82,
+    "Land_Use_Type": "Industrial",
+    "Land_Use_Coverage": { "Industrial": 65, "Urban": 25, "Agricultural": 10 },
+    "Industrial_Proximity": 2.5,
+    "Mining_Proximity": 45.2,
+    "Agricultural_Proximity": 8.1,
+    "Groundwater_Depth": 25.5,
+    "Recharge_Rate": 180,
+    "Rainfall": 800,
+    "Trend_Data": [0.41, 0.43, 0.45, 0.46, 0.48, 0.5, 0.55, 0.57, 0.6, 0.62, 0.65, 0.68, 0.72, 0.75, 0.78],
+    "Predicted_Risk": [0.81, 0.84, 0.87, 0.89, 0.92],
+    "Policy_Interventions": ["Water Treatment Plant", "Industrial Monitoring"],
+    "Recommended_Actions": ["Immediate water treatment", "Industrial waste monitoring", "Alternative water sources"],
+    "Region_State": "Punjab",
+    "Region_District": "Ludhiana",
+    "Coordinates": {
+      "type": "Polygon",
+      "coordinates": [
+        [[75.8423, 30.9159], [75.8723, 30.9159], [75.8723, 30.8859], [75.8423, 30.8859], [75.8423, 30.9159]]
+      ]
+    }
+  },
+  {
+    "Raster_ID": "IN-0002",
+    "State": "West Bengal",
+    "District": "Murshidabad",
+    "Lat_Center": 24.175,
+    "Lon_Center": 88.2802,
+    "Heavy_Metals": {
+      "As": 0.095,
+      "Pb": 0.018,
+      "Cr": 0.032,
+      "Cd": 0.004,
+      "Hg": 0.0008,
+      "Fe": 1.2,
+      "Mn": 0.45
+    },
+    "WHO_Limits": {
+      "As": 0.01,
+      "Pb": 0.01,
+      "Cr": 0.05,
+      "Cd": 0.003,
+      "Hg": 0.006,
+      "Fe": 0.3,
+      "Mn": 0.4
+    },
+    "Risk_Index": 0.89,
+    "Exceedance_Flag": true,
+    "Population_Density": 1800,
+    "Population_Exposed": 32000,
+    "Health_Risk_Score": 0.91,
+    "Land_Use_Type": "Agricultural",
+    "Land_Use_Coverage": { "Agricultural": 75, "Rural": 20, "Industrial": 5 },
+    "Industrial_Proximity": 18.3,
+    "Mining_Proximity": 78.5,
+    "Agricultural_Proximity": 0.5,
+    "Groundwater_Depth": 15.2,
+    "Recharge_Rate": 210,
+    "Rainfall": 1500,
+    "Trend_Data": [0.52, 0.54, 0.56, 0.59, 0.62, 0.66, 0.69, 0.72, 0.75, 0.78, 0.81, 0.84, 0.86, 0.88, 0.89],
+    "Predicted_Risk": [0.92, 0.95, 0.97, 0.98, 0.99],
+    "Policy_Interventions": ["Arsenic Mitigation Program"],
+    "Recommended_Actions": ["Emergency water supply", "Health screening", "Arsenic removal systems"],
+    "Region_State": "West Bengal",
+    "Region_District": "Murshidabad",
+    "Coordinates": {
+      "type": "Polygon",
+      "coordinates": [[[88.2652, 24.19], [88.2952, 24.19], [88.2952, 24.16], [88.2652, 24.16], [88.2652, 24.19]]]
+    }
+  },
+  {
+    "Raster_ID": "IN-0003",
+    "State": "Uttar Pradesh",
+    "District": "Kanpur Nagar",
+    "Lat_Center": 26.4499,
+    "Lon_Center": 80.3319,
+    "Heavy_Metals": {
+      "As": 0.035,
+      "Pb": 0.048,
+      "Cr": 0.078,
+      "Cd": 0.006,
+      "Hg": 0.0015,
+      "Fe": 1.1,
+      "Mn": 0.52
+    },
+    "WHO_Limits": {
+      "As": 0.01,
+      "Pb": 0.01,
+      "Cr": 0.05,
+      "Cd": 0.003,
+      "Hg": 0.006,
+      "Fe": 0.3,
+      "Mn": 0.4
+    },
+    "Risk_Index": 0.84,
+    "Exceedance_Flag": true,
+    "Population_Density": 2200,
+    "Population_Exposed": 41000,
+    "Health_Risk_Score": 0.86,
+    "Land_Use_Type": "Urban",
+    "Land_Use_Coverage": { "Urban": 60, "Industrial": 30, "Commercial": 10 },
+    "Industrial_Proximity": 1.2,
+    "Mining_Proximity": 120.8,
+    "Agricultural_Proximity": 15.5,
+    "Groundwater_Depth": 35.8,
+    "Recharge_Rate": 160,
+    "Rainfall": 900,
+    "Trend_Data": [0.45, 0.47, 0.5, 0.53, 0.58, 0.6, 0.63, 0.66, 0.68, 0.7, 0.73, 0.76, 0.79, 0.82, 0.84],
+    "Predicted_Risk": [0.87, 0.89, 0.91, 0.93, 0.95],
+    "Policy_Interventions": ["Industrial Effluent Treatment", "Urban Water Management"],
+    "Recommended_Actions": ["Industrial waste regulation", "Water quality monitoring", "Alternative sources"],
+    "Region_State": "Uttar Pradesh",
+    "Region_District": "Kanpur Nagar",
+    "Coordinates": {
+      "type": "Polygon",
+      "coordinates": [
+        [[80.3169, 26.4649], [80.3469, 26.4649], [80.3469, 26.4349], [80.3169, 26.4349], [80.3169, 26.4649]]
+      ]
+    }
+  },
+  {
+    "Raster_ID": "IN-0004",
+    "State": "Bihar",
+    "District": "Patna",
+    "Lat_Center": 25.5941,
+    "Lon_Center": 85.1376,
+    "Heavy_Metals": {
+      "As": 0.068,
+      "Pb": 0.022,
+      "Cr": 0.038,
+      "Cd": 0.005,
+      "Hg": 0.0006,
+      "Fe": 0.95,
+      "Mn": 0.38
+    },
+    "WHO_Limits": {
+      "As": 0.01,
+      "Pb": 0.01,
+      "Cr": 0.05,
+      "Cd": 0.003,
+      "Hg": 0.006,
+      "Fe": 0.3,
+      "Mn": 0.4
+    },
+    "Risk_Index": 0.76,
+    "Exceedance_Flag": true,
+    "Population_Density": 2000,
+    "Population_Exposed": 36000,
+    "Health_Risk_Score": 0.79,
+    "Land_Use_Type": "Mixed",
+    "Land_Use_Coverage": { "Urban": 45, "Agricultural": 35, "Industrial": 20 },
+    "Industrial_Proximity": 12.7,
+    "Mining_Proximity": 58.3,
+    "Agricultural_Proximity": 3.2,
+    "Groundwater_Depth": 22.1,
+    "Recharge_Rate": 190,
+    "Rainfall": 1100,
+    "Trend_Data": [0.5, 0.52, 0.54, 0.56, 0.6, 0.63, 0.66, 0.68, 0.71, 0.73, 0.74, 0.75, 0.76, 0.76, 0.76],
+    "Predicted_Risk": [0.77, 0.78, 0.79, 0.8, 0.81],
+    "Policy_Interventions": ["Groundwater Management", "Agricultural Best Practices"],
+    "Recommended_Actions": ["Water testing program", "Agricultural runoff control", "Community awareness"],
+    "Region_State": "Bihar",
+    "Region_District": "Patna",
+    "Coordinates": {
+      "type": "Polygon",
+      "coordinates": [
+        [[85.1226, 25.6091], [85.1526, 25.6091], [85.1526, 25.5791], [85.1226, 25.5791], [85.1226, 25.6091]]
+      ]
+    }
+  },
+  {
+    "Raster_ID": "IN-0005",
+    "State": "Maharashtra",
+    "District": "Nagpur",
+    "Lat_Center": 21.1458,
+    "Lon_Center": 79.0882,
+    "Heavy_Metals": {
+      "As": 0.015,
+      "Pb": 0.028,
+      "Cr": 0.032,
+      "Cd": 0.002,
+      "Hg": 0.0004,
+      "Fe": 0.45,
+      "Mn": 0.25
+    },
+    "WHO_Limits": {
+      "As": 0.01,
+      "Pb": 0.01,
+      "Cr": 0.05,
+      "Cd": 0.003,
+      "Hg": 0.006,
+      "Fe": 0.3,
+      "Mn": 0.4
+    },
+    "Risk_Index": 0.52,
+    "Exceedance_Flag": false,
+    "Population_Density": 900,
+    "Population_Exposed": 9000,
+    "Health_Risk_Score": 0.48,
+    "Land_Use_Type": "Urban",
+    "Land_Use_Coverage": { "Urban": 70, "Commercial": 20, "Green": 10 },
+    "Industrial_Proximity": 25.4,
+    "Mining_Proximity": 85.7,
+    "Agricultural_Proximity": 18.9,
+    "Groundwater_Depth": 28.3,
+    "Recharge_Rate": 130,
+    "Rainfall": 1100,
+    "Trend_Data": [0.25, 0.28, 0.3, 0.32, 0.33, 0.35, 0.37, 0.39, 0.4, 0.42, 0.44, 0.46, 0.48, 0.5, 0.52],
+    "Predicted_Risk": [0.54, 0.56, 0.58, 0.6, 0.62],
+    "Policy_Interventions": ["Urban Planning", "Green Infrastructure"],
+    "Recommended_Actions": ["Preventive monitoring", "Sustainable development", "Water conservation"],
+    "Region_State": "Maharashtra",
+    "Region_District": "Nagpur",
+    "Coordinates": {
+      "type": "Polygon",
+      "coordinates": [
+        [[79.0732, 21.1608], [79.1032, 21.1608], [79.1032, 21.1308], [79.0732, 21.1308], [79.0732, 21.1608]]
+      ]
+    }
+  }
+]
