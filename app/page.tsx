@@ -31,6 +31,9 @@ export default function Page() {
         <Button asChild variant="secondary">
           <Link href="/about">About</Link>
         </Button>
+         <Button asChild variant="secondary">
+          <Link href="/data">Data</Link>
+        </Button>
       </nav>
 
       <RiskSummaryCards />

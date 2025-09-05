@@ -7,6 +7,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Suspense } from "react"
 import { NavigationSidebar } from "@/components/navigation-sidebar"
+import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
   title: "Groundwater Monitoring Dashboard",
@@ -30,6 +31,7 @@ export default function RootLayout({
               <main className="flex-1 overflow-auto">{children}</main>
             </div>
             <Analytics />
+            <Toaster />
           </ThemeProvider>
         </Suspense>
       </body>

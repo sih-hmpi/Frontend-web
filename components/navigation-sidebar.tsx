@@ -12,12 +12,15 @@ import {
   InfoIcon,
   ActivityIcon,
   DatabaseIcon,
+  Database,
   AlertTriangleIcon,
 } from "lucide-react"
+import React from 'react';
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: HomeIcon },
   { name: "Interactive Map", href: "/map", icon: MapIcon },
+  { name: "Data", href: "/data", icon: Database },
   { name: "Analytics", href: "/analytics", icon: BarChart3Icon },
   { name: "Compare Regions", href: "/compare", icon: GitCompareIcon },
   { name: "About", href: "/about", icon: InfoIcon },
@@ -84,3 +87,6 @@ export function NavigationSidebar() {
     </div>
   )
 }
+
+// Add explicit default export if needed
+export default NavigationSidebar;
