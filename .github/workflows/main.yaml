@@ -31,3 +31,5 @@ jobs:
           tags: |
             hatakekakashihk/sih_frontend:latest
             hatakekakashihk/sih_frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
