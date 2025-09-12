@@ -1,0 +1,672 @@
+Nice — let’s go deep. Below I’ll expand each core engine (Data Ingestion, Preprocessing, Computation, Classification) into full design-level detail: responsibilities, data models, APIs, algorithms/pseudocode, edge cases, performance & scalability patterns, testing, observability, and extensibility. I’ll include concrete JSON/SQL schemas and short Python-like pseudocode you can copy into real services. Ready? Let’s engineer this thing like a product.
+
+Core design assumptions (shared)
+
+Atomic input = a sample reading: { sample_id, timestamp, lat, lon, metadata, measurements } where measurements is { "Pb": 0.012, "As": 0.003, ... } with units (mg/L or µg/L).
+
+Standards table contains reference limits per metal (WHO/BIS) and default units.
+
+System must support high-volume batch ingestion (thousands of samples) and single uploads (labs, mobile).
+
+Use a microservice per engine; communicate via REST/GRPC and a message broker (Kafka/RabbitMQ) for async pipelines.
+
+Tech suggestions: Python (FastAPI) for services, PostgreSQL+PostGIS for storage, Redis for caching, Pandas/Numpy for preprocessing, GeoPandas/PostGIS for spatial ops.
+
+
+
+---
+
+1 — Data Ingestion Engine (DIE)
+
+Purpose & responsibilities
+
+Accept raw data from multiple sources: file upload (CSV/XLSX), REST API POST, SFTP drops, instrument API (JSON), and streaming (Kafka).
+
+Validate input schema & types, normalize units on ingest metadata, persist raw payloads as immutable artifacts.
+
+Emit validated sample records downstream (to Preprocessing Engine) and store raw files for audit.
+
+
+Ingestion sources
+
+HTTP multipart uploads (web UI).
+
+API endpoint for labs (API key + TLS).
+
+SFTP / S3 watchers (periodic poll).
+
+Kafka topic for streaming instruments.
+
+
+API surface (example)
+
+POST /ingest/samples — accepts JSON array of samples.
+
+POST /ingest/file — file upload (CSV/XLSX).
+
+GET /ingest/status/{batch_id} — status of ingestion job.
+
+
+Sample request (JSON)
+
+{
+  "batch_id": "b1c9",
+  "source": "lab_xyz",
+  "samples": [
+    {
+      "sample_id": "s-20250801-001",
+      "collected_at": "2025-08-01T09:12:00Z",
+      "lat": 25.3176,
+      "lon": 82.9739,
+      "measurements": { "Pb_mg_per_L": 0.012, "As_ug_per_L": 12.0 },
+      "meta": { "lab_id": "lab_xyz", "method": "AAS", "notes": "" }
+    }
+  ]
+}
+
+Data model (DB)
+
+raw_ingest table (append-only):
+
+CREATE TABLE raw_ingest (
+  id SERIAL PRIMARY KEY,
+  batch_id TEXT,
+  source TEXT,
+  raw_payload JSONB,
+  received_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  status TEXT, -- queued, validated, failed
+  validation_errors JSONB
+);
+
+Validation checks (first pass)
+
+Required fields: sample_id, collected_at, measurements.
+
+Geo: lat in [-90,90], lon [-180,180] or null.
+
+No duplicate sample_id within same source+batch.
+
+Measurements numerical and non-negative.
+
+Units identified or flagged.
+
+
+Workflow & architecture
+
+1. API receives payload → store raw payload in raw_ingest (status: queued).
+
+
+2. Validator worker (consumer) picks job → schema validation & enrichment (normalize keys, detect units) → if valid push normalized messages to a broker topic samples.validated and update raw_ingest. If invalid, record errors and notify user.
+
+
+3. Audit: all raw files stored on object store (S3/GCS) with pointer in DB.
+
+
+
+File parsing rules
+
+CSV: flexible header mapping (alias map e.g., lead, Pb, pb → Pb). Allow unit row detection.
+
+Excel: multiple sheets, main data sheet detection heuristics.
+
+Fail-safe: if ambiguous, create needs_manual_review status and send to UI moderation queue.
+
+
+Edge cases & mitigation
+
+Missing units: attempt to infer from typical ranges (e.g., As in µg/L normally) and mark units_inferred: true. Flag for review.
+
+Duplicate samples: detect, merge (keep newest) or reject based on policy. Keep audit trail.
+
+Large file (100k rows): accept and turn into async batch job—return batch_id and stream progress.
+
+
+Observability & alerts
+
+Metrics: ingestion rate (rows/sec), validation failure rate, average parse latency, queue lag.
+
+Alerts: spike in validation failures, stalled batches > X minutes, repeated malformed uploads from a source.
+
+
+Security
+
+TLS for REST, API keys or mTLS for lab APIs, S3 signed URLs for large uploads.
+
+RBAC for manual review UI.
+
+Input sanitization to prevent JSON injection; raw payload only stored, not executed.
+
+
+
+---
+
+2 — Preprocessing Engine (PE)
+
+Purpose & responsibilities
+
+Convert validated raw samples into canonical, analysis-ready records.
+
+Unit normalization, limit-matching (WHO/BIS), outlier detection & imputation, timestamp/timezone normalization, geocoding enrichment, and data quality scoring.
+
+Store processed records in the analytical database and emit to Computation Engine.
+
+
+Input / Output
+
+Input: validated sample messages { sample_id, collected_at, lat, lon, measurements, meta }
+
+Output: processed sample { sample_id, ts_utc, geom, measurements_standardized, quality_flags, standardized_units }
+
+
+Steps in preprocessing
+
+1. Unit normalization
+
+Convert everything to a canonical unit for each metal (recommendation: mg/L). Convert µg/L → mg/L by dividing by 1000.
+
+Maintain original_units metadata.
+
+
+
+2. Reference standard linking
+
+For each metal, fetch reference (e.g., WHO_max_mg_per_L, BIS_max). Store per-sample per-metal reference.
+
+
+
+3. Range & plausibility checks
+
+Check for physically impossible values (negative, > 1e6). Flag as invalid_measurement.
+
+If a measurement is 0 but detection limit exists, keep 0 but note detection_limit.
+
+
+
+4. Outlier detection
+
+Two-stage:
+
+Local z-score within region/time (if adequate samples)
+
+Global robust stats using median + MAD.
+
+
+Flag values with outlier:true for review; optionally cap/trim depending on policy.
+
+
+
+5. Missing value handling / imputation
+
+If < X% missing for a sample: impute using regional median or KNN-impute across nearby coordinates (k=5) considering hydrological boundaries.
+
+If critical metals missing (user-config), mark sample as incomplete and exclude from index computation or compute partial index with warning.
+
+
+
+6. Geo enrichment
+
+If no lat/lon but an address exists, reverse geocode (optional) or set geom null and mark no_geolocation.
+
+Snap points to river basin polygons if available (PostGIS) to allow basin-level aggregations.
+
+
+
+7. Quality scoring
+
+For each sample compute dq_score (0–1) combining: completeness, instrument method reliability, outlier flags, age of sample. Use weighted sum. Store dq_reason list.
+
+
+
+8. Normalization of metal names
+
+Use canonical keys (Pb, As, Cd, Cr, Ni, Hg, Cu, Zn) and maintain extra metadata for nonstandard metals.
+
+
+
+
+Data model (processed)
+
+samples_processed table:
+
+CREATE TABLE samples_processed (
+  sample_id TEXT PRIMARY KEY,
+  batch_id TEXT,
+  ts_utc TIMESTAMP WITH TIME ZONE,
+  geom GEOGRAPHY(POINT, 4326),
+  measurements JSONB, -- {"Pb":0.012, "As":0.003}
+  refs JSONB, -- {"Pb": {"WHO":0.01,"BIS":0.01}, ...}
+  dq_score FLOAT,
+  flags JSONB,
+  processed_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+Algorithms & pseudocode (Pythonic)
+
+def preprocess_sample(s):
+    # 1. normalize time
+    ts = parse_utc(s['collected_at'])
+    # 2. normalize units
+    meas = {}
+    for raw_key, val in s['measurements'].items():
+        metal, unit = parse_key(raw_key)  # "As_ug_per_L" -> ("As","ug/L")
+        val_mg = convert_to_mg_per_L(val, unit)
+        meas[metal] = val_mg
+    # 3. fetch refs
+    refs = fetch_refs_for_metals(list(meas.keys()))
+    # 4. plausibility
+    flags=[]
+    for m,v in meas.items():
+        if v < 0 or v > 1e5: flags.append({'metal':m,'reason':'plausibility'})
+    # 5. outlier (global med+mad)
+    outliers = detect_outliers(meas)
+    flags.extend(outliers)
+    # 6. quality score
+    dq = compute_dq_score(meas, flags)
+    # 7. geo
+    geom = point_from_latlon(s.get('lat'), s.get('lon'))
+    return {
+      "sample_id": s['sample_id'],
+      "ts_utc": ts,
+      "geom": geom,
+      "measurements": meas,
+      "refs": refs,
+      "dq_score": dq,
+      "flags": flags
+    }
+
+Performance & scaling
+
+Batch-mode: process in chunks with Pandas and vectorized ops.
+
+Stream-mode: use a pool of workers; normalize and store.
+
+For geospatial joins (snap to basin), use PostGIS spatial indexes and perform bulk ST_Intersects with prepared geometries.
+
+
+Edge Cases & policies
+
+High missingness: if > 40% metals missing, mark sample unusable.
+
+Contradictory units inside one row: reject row and send to manual review.
+
+Conflicting timestamps: prefer meta.lab_time vs collected_at based on source priority.
+
+
+Observability & data lineage
+
+Persist mapping: raw_ingest.id → samples_processed.sample_id.
+
+Log transformations per sample in an append-only transform_log table for reproducibility.
+
+
+
+---
+
+3 — Computation Engine (HMPI Engine)
+
+This is the heart: implementing indices accurately, reproducibly, and extensibly.
+
+Responsibilities
+
+Compute any configured indices per sample or aggregation window (site-level, basin-level).
+
+Support standard indices: HPI, HEI, Contamination Index (Cd), mHPI, and custom ones.
+
+Handle partial indices (if some metals missing) according to defined policies (e.g., compute if >= threshold of required metals).
+
+Provide uncertainty propagation, sensitivity breakdown (which metals contributed most), and per-metal contributions.
+
+
+Required formulas (canonical)
+
+HPI (example variant)
+
+Q_i = \left(\frac{C_i - I_i}{S_i - I_i}\right) \times 100
+
+W_i = \frac{1}{S_i}
+
+HPI = \frac{\sum W_i Q_i}{\sum W_i} 
+
+HEI
+
+HEI = \sum_{i=1}^n \frac{C_i}{H_{MAC_i}}
+
+Contamination Degree (Cd)
+
+Cd = \sum_{i=1}^n \left(\frac{C_i}{S_i} - 1\right)
+
+(Include configurable formula expressions using a small expression language or safe eval.)
+
+Design patterns
+
+Formula registry: store formulas and meta (name, required metals, parameters) in DB. Allows admins to add new indices.
+
+Computation as deterministic function: pure function compute_index(sample, formula) that returns index value + per-metal contributions + computation metadata (missing metals, weights used). This makes caching & testing easy.
+
+
+API (compute)
+
+POST /compute/sample/{sample_id}?indices=HPI,HEI → returns results.
+
+POST /compute/batch → queue for async computation (heavy jobs).
+
+GET /compute/result/{job_id}
+
+
+Pseudocode (core)
+
+def compute_HPI(sample, refs):
+    # sample.measurements in mg/L
+    contributions = {}
+    numerator = 0; denom = 0
+    for metal, S in refs.items():
+        Ci = sample["measurements"].get(metal)
+        if Ci is None: continue
+        Ii = 0.0
+        Qi = ((Ci - Ii) / (S - Ii)) * 100 if S > 0 else 0
+        Wi = 1.0 / S if S > 0 else 0
+        contributions[metal] = {"Ci":Ci, "Qi":Qi, "Wi":Wi, "partial":False}
+        numerator += Wi * Qi
+        denom += Wi
+    HPI = numerator / denom if denom > 0 else None
+    return {"HPI": HPI, "contributions": contributions}
+
+Partial data policy
+
+Strict: if any required metal missing → do not compute; return insufficient_data.
+
+Lenient: compute using available metals but scale weights to sum; include coverage_pct.
+
+Recommend configurable threshold (e.g., compute if ≥ 70% of required metals present).
+
+
+Batch & aggregation
+
+Aggregate indices across time windows or spatial buckets using weighted averages (weights = sample reliability score dq_score) or simple mean. Provide both.
+
+
+Sensitivity & explainability
+
+Always return per_metal_contribution = Wi*Qi / sum(Wi*Qi) so UI can show top offending metals.
+
+Compute what-if: how much would index change if a metal were reduced to standard — useful for remediation planning.
+
+
+Numerical stability & precision
+
+Use decimal or float64 with careful checks for divide-by-zero when standard S=0.
+
+Round outputs to sensible precision (3 significant digits) but store full precision.
+
+
+Performance & scaling
+
+Vectorize batch computation using NumPy/Pandas.
+
+For large aggregations, push down simple computations to DB (Postgres JSONB functions) where possible; for more complex or many indices, use compute cluster (Dask or Spark).
+
+
+Testing & verification
+
+Unit tests for each formula with known examples.
+
+Property tests: index monotonicity (if all Ci increase, index increases).
+
+Fuzz tests: random inputs, assert no crashes & reasonable ranges.
+
+
+
+---
+
+4 — Classification Engine
+
+Purpose & responsibilities
+
+Map computed index values to descriptive categories (Excellent/Good/Poor/Unfit) using thresholds.
+
+Provide confidence / uncertainty labels and remediation advice per category.
+
+Support multiple classification schemas (WHO-based, local policy-based) and be pluggable.
+
+
+Types of classification
+
+Deterministic thresholds:
+
+HPI < 100 → Low pollution, etc. (example thresholds depend on index).
+
+
+Rule-based combined classifiers:
+
+If any metal concentration > critical threshold → immediate Unfit regardless of index.
+
+
+Fuzzy logic / score ranges:
+
+Use fuzzy membership functions for borderline cases, produce probable_good etc.
+
+
+ML-based classifier (future): train model on labeled historical data.
+
+
+Configuration model
+
+classifiers table:
+
+{
+  "id": "hpi_default",
+  "for_index": "HPI",
+  "rules": [
+     {"op":"<","value":30,"label":"Excellent"},
+     {"op":"<","value":60,"label":"Good"},
+     {"op":"<","value":100,"label":"Poor"},
+     {"op":">=","value":100,"label":"Unfit"}
+  ],
+  "overrides": [
+     {"metal":"As","op":">","value":0.01,"label":"Unfit","priority":100}
+  ]
+}
+
+Algorithm & pseudocode
+
+def classify(sample_result, classifier_cfg):
+    idx_val = sample_result['HPI']
+    # overrides
+    for ov in classifier_cfg['overrides']:
+        if sample_result['measurements'].get(ov['metal']) and sample_result['measurements'][ov['metal']] > ov['value']:
+            return {"label": ov['label'], "reason": f"{ov['metal']} override"}
+    # thresholds
+    for rule in classifier_cfg['rules']:
+        if op_map[rule['op']](idx_val, rule['value']):
+            return {"label": rule['label'], "rule_matched":rule}
+    return {"label":"Unknown", "reason":"no rule matched"}
+
+Multi-index fusion
+
+If multiple indices present (HPI, HEI): use policy:
+
+Max-risk: pick worst classification among indices.
+
+Weighted: map categories to numeric risk and average.
+
+Custom: rules engine for complex policies.
+
+
+
+Provide explanations & remediation
+
+For each classified sample return:
+
+label, matched_rule, top_offending_metals (from computation engine), confidence (based on dq_score and number of present metals), and short remediation suggestions (e.g., "Reduce As via ion-exchange; test deeper aquifer").
+
+
+
+Handling uncertainty
+
+If input dq_score low or coverage low, append confidence: low and recommendation: retest sample.
+
+
+UI usage
+
+Color-coded badges on dashboard, map symbology (green/yellow/red), filter by label.
+
+
+Test cases
+
+All boundary conditions for thresholds.
+
+Override behavior (metal > critical always marks unfit).
+
+Multi-index fusion correctness.
+
+
+
+---
+
+Cross-cutting concerns
+
+Data lineage & reproducibility
+
+For each computed index store computation_manifest with:
+
+software_version, formula_id, refs_snapshot_id, timestamp, input_sample_id, preprocessing_snapshot_id.
+
+
+This ensures reproducibility and legal traceability.
+
+
+Configuration & Admin UX
+
+Admin panel to:
+
+Manage reference limits (WHO/BIS).
+
+Add/modify formula definitions.
+
+Set classification rules and override priorities.
+
+
+
+Observability & Monitoring
+
+Metrics per engine: latency, throughput, error rate.
+
+Traces: use distributed tracing (OpenTelemetry) to follow sample from ingestion → preprocessing → compute → classification.
+
+Dashboards: Grafana for metrics, Kibana for logs, Alerting rules.
+
+
+Security & Privacy
+
+Anonymize location granularity if required (rounded coordinates) for public reports.
+
+Encryption at rest for stored measurements (PG encrypted columns or cloud KMS).
+
+Audit logs of admin config changes.
+
+
+Extensibility & future features
+
+Add ML models for anomaly detection in preprocessing.
+
+Add real-time stream processing for continuous sensors (use Flink/Beam).
+
+Add simulation / what-if modules in computation engine.
+
+
+
+---
+
+Example end-to-end sequence (concise)
+
+1. User uploads CSV → DIE stores raw → validator emits samples.validated.
+
+
+2. PE consumes samples.validated → normalizes units, runs outlier detection, saves to samples_processed, emits samples.processed.
+
+
+3. HMPI Engine consumes samples.processed → computes HPI/HEI/Cd, stores index_results with contributions, emits index.computed.
+
+
+4. Classification Engine consumes index.computed → applies classifier, stores classification_results.
+
+
+5. UI reads classification_results for dashboard & map.
+
+
+
+
+---
+
+Concrete artifacts you can take to devs now
+
+1) JSON schema for canonical processed sample
+
+{
+  "sample_id": "s-001",
+  "ts_utc": "2025-08-01T09:12:00Z",
+  "geom": {"type":"Point","coordinates":[82.9739,25.3176]},
+  "measurements": {"Pb":0.012,"As":0.003},
+  "units":"mg/L",
+  "refs": {"Pb":{"WHO":0.01},"As":{"WHO":0.01}},
+  "dq_score": 0.87,
+  "flags": ["outlier_Pb"],
+  "raw_id":"raw_12345"
+}
+
+2) SQL table definitions (already given above) — include index_results table:
+
+CREATE TABLE index_results (
+  id SERIAL PRIMARY KEY,
+  sample_id TEXT REFERENCES samples_processed(sample_id),
+  index_name TEXT,
+  value DOUBLE PRECISION,
+  contributions JSONB, -- per-metal
+  params JSONB, -- formula id, refs used
+  computed_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+3) Minimal unit test ideas (pytest)
+
+test_compute_HPI_simple() → known inputs produce expected HPI.
+
+test_preprocess_unit_conversion() → µg → mg conversion correct.
+
+test_ingest_schema_rejection() → missing sample_id returns 400 and logs.
+
+
+
+---
+
+Final practical recommendations (prioritization)
+
+1. Implement DIE + PE first — they form the bedrock. Ensure robust validation & lineage.
+
+
+2. Implement Computation Engine next — start with HPI + HEI + Cd and formula registry.
+
+
+3. Add Classification Engine after — with simple threshold configs and metal overrides.
+
+
+4. Instrument everything with tracing & metrics before adding heavy UI features.
+
+
+5. Ship a CLI and REST API for automated batch runs and easy integration with lab workflows.
+
+
+
+
+---
+
+If you want, I can now:
+
+produce copy-paste-ready Python microservice templates for any of these engines (FastAPI + workers + DB models), OR
+
+draw a detailed sequence diagram and component diagram for inclusion in your proposal, OR
+
+implement a sample notebook that shows ingestion → preprocess → compute → classify on synthetic data.
+
+
+Which of those do you want next? (I’ll jump straight in and produce runnable code / diagrams — your call.)
+
